@@ -2,8 +2,10 @@ use dotenvy::var;
 use headless_chrome::{types::PrintToPdfOptions, LaunchOptions};
 use reqwest::{header::AUTHORIZATION, multipart};
 use serde_json::Value;
-use tokio::fs::File;
 use std::io::Write;
+use tokio::fs::File;
+use tokio::time::{sleep, Duration};
+use uuid::Uuid;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -33,7 +35,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .ok_or("Could not find user id in response")?
         .to_owned();
 
+    let file_id = Uuid::new_v4().to_string();
+    let filename_pdf = format!("/tmp/{file_id}.pdf");
+
     if std::path::Path::new("/file.html").exists() {
+        let filename_pdf = filename_pdf.clone();
         println!("Starting PDF conversion");
         let handler = std::thread::spawn(|| {
             let launch_options = LaunchOptions {
@@ -42,7 +48,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             };
             html2pdf::html_to_pdf(
                 "/file.html",
-                "/tmp/file_to_send.pdf",
+                filename_pdf,
                 PrintToPdfOptions::default(),
                 launch_options,
                 None,
@@ -51,7 +57,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         while !handler.is_finished() {
             print!(".");
             std::io::stdout().flush().unwrap_or_default();
-            std::thread::sleep(std::time::Duration::from_millis(200));
+            sleep(Duration::from_millis(200)).await;
         }
         handler.join().map_err(|_| "thread error")??;
         println!("\nFinished PDF conversion");
@@ -59,8 +65,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         return Err("HTML file not found".into());
     }
 
-    // Sent file to user on Slack
-    let file = File::open("/tmp/file_to_send.pdf").await?;
+    // Send file to user on Slack
+    let file = File::open(filename_pdf).await?;
     let some_file = multipart::Part::stream(file)
         .file_name("document.pdf")
         .mime_str("text/plain")?;
