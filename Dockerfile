@@ -7,10 +7,6 @@ RUN rm google-chrome-stable_current_amd64.deb
 
 WORKDIR /app
 
-RUN useradd -m rustuser && chown rustuser:rustuser /app
-
-USER rustuser
-
 COPY Cargo.toml Cargo.toml
 
 COPY Cargo.lock Cargo.lock
